@@ -2,22 +2,28 @@ FROM alpine:latest AS certs
 
 RUN apk add --no-cache ca-certificates && update-ca-certificates
 
-FROM busybox:latest
+FROM alpine:latest
 
-ENV RCLONE_VERSION=v1.66.0
-COPY --from=certs /usr/share/ca-certificates/* /usr/ssl/certs
-RUN \
-    OS=linux &&\
-    if [[ $(uname -m) == "aarch64" ]]; then \
-        ARCH=arm64 ; \
-    elif [[ $(uname -m) == "amd64" ]]; then \
-        ARCH=amd64 ; \
-    fi && \
-    wget https://downloads.rclone.org/${RCLONE_VERSION}/rclone-${RCLONE_VERSION}-${OS}-${ARCH}.zip -qO - | tar -zxvf - -C /tmp && \
-    mv /tmp/rclone /bin/ && \
+ENV VERSION_RCLONE=v1.66.0
+COPY --from=certs /etc/ssl/certs /etc/ssl/certs
+RUN set -eux; \
+    osarch="$(uname -m)"; \
+    case "$osarch" in \
+        'x86_64') \
+            export ARCH=amd64 OS=linux ; \
+            ;; \
+        'aarch64') \
+            export ARCH=arm64 OS=linux ; \
+            ;; \
+        *) \
+            echo >&2 "unsupported arch '$osarch'" ;; \
+    esac; \
+    wget https://downloads.rclone.org/${VERSION_RCLONE}/rclone-${VERSION_RCLONE}-${OS}-${ARCH}.zip -qO /tmp/rclone.zip && \
+    unzip /tmp/rclone.zip -d /tmp && \
+    mv "/tmp/rclone-${VERSION_RCLONE}-${OS}-${ARCH}/rclone" /bin/ && \
     chmod a+x /bin/rclone && \
-    rclone -v && \
-    rm -rf /tmp*
+    rclone version && \
+    rm -rf /tmp/*
 
 USER 1000
 
